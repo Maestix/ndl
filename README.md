@@ -1,6 +1,7 @@
 # NDL - Nhentai Downloader
 
 [![Rust](https://img.shields.io/badge/Rust-1.70%2B-orange)](https://www.rust-lang.org/) [![Tokio](https://img.shields.io/badge/Runtime-Tokio-teal)](https://tokio.rs) [![Tokio](https://img.shields.io/badge/Http-reqwest-yellow)](https://tokio.rs)
+
 A minimalist Nhentai downloader written in Rust! 🦀
 
 ## Features
