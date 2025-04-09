@@ -7,22 +7,19 @@ use tokio::{fs as tokio_fs, sync::Semaphore, task};
 
 #[tokio::main]
 async fn main() {
-    // Get the gallery URL from the command-line arguments.
     let args: Vec<String> = env::args().collect();
     if args.len() < 2 {
         eprintln!("Please provide a valid nhentai gallery URL.");
         return;
     }
-    // Replace the base domain if it's "nhentai.net"
+
     let mut url = args[1].clone();
     url = url.replace("https://nhentai.net", "https://nhentai.to");
 
-    // Limit concurrency to avoid overwhelming the server.
-    let semaphore = Arc::new(Semaphore::new(20));
-    // Create a persistent reqwest client.
-    let client = Arc::new(create_client());
+    let semaphore = Arc::new(Semaphore::new(12));
 
-    // Fetch the gallery HTML.
+    let client = create_client();
+
     let html = match fetch_html(client.clone(), &url).await {
         Ok(html) => html,
         Err(e) => {
@@ -31,7 +28,6 @@ async fn main() {
         }
     };
 
-    // Extract the manga title from the <h1> element inside the #info-block.
     let manga_title = match extract_manga_title(&html) {
         Some(title) => title,
         None => {
@@ -41,10 +37,8 @@ async fn main() {
     };
     println!("Manga Title: {}", manga_title);
 
-    // Sanitize the manga title to create a valid folder name.
     let folder_name = sanitize_windows_filename(&manga_title);
 
-    // Create the folder if it doesn't exist.
     let folder_path = Path::new(&folder_name);
     if !folder_path.exists() {
         if let Err(e) = tokio_fs::create_dir_all(&folder_path).await {
@@ -53,16 +47,10 @@ async fn main() {
         }
     }
 
-    // Extract the image URLs from the HTML.
     let image_urls = extract_image_urls(&html);
 
-    // Fix the URLs (remove the trailing "t" in the filename).
-    let fixed_urls: Vec<String> = image_urls
-        .into_iter()
-        .filter_map(|url| fix_url(&url))
-        .collect();
+    let fixed_urls: Vec<String> = image_urls.iter().filter_map(|url| fix_url(&url)).collect();
 
-    // Create a progress bar.
     let pb = Arc::new(ProgressBar::new(fixed_urls.len() as u64));
     pb.set_style(
         ProgressStyle::default_bar()
@@ -73,11 +61,10 @@ async fn main() {
             .progress_chars("#>-"),
     );
 
-    // Download images concurrently into the manga folder.
     let handles: Vec<_> = fixed_urls
         .into_iter()
         .map(|image_url| {
-            let client_clone = Arc::clone(&client);
+            let client_clone = client.clone();
             let semaphore = Arc::clone(&semaphore);
             let pb = Arc::clone(&pb);
             let folder_name = folder_name.clone();
@@ -89,7 +76,6 @@ async fn main() {
         })
         .collect();
 
-    // Await all download tasks.
     for handle in handles {
         handle.await.unwrap();
     }
@@ -101,7 +87,7 @@ fn create_client() -> Client {
     headers.insert(
         header::USER_AGENT,
         header::HeaderValue::from_static(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:135.0) Gecko/20100101 Firefox/135.0",
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36",
         ),
     );
     Client::builder()
@@ -110,13 +96,12 @@ fn create_client() -> Client {
         .expect("Failed to create reqwest client")
 }
 
-async fn fetch_html(client: Arc<Client>, url: &str) -> Result<String, reqwest::Error> {
+async fn fetch_html(client: Client, url: &str) -> Result<String, reqwest::Error> {
     let response = client.get(url).send().await?;
     let body = response.text().await?;
     Ok(body)
 }
 
-/// Extracts the manga title from the first <h1> element inside the #info-block.
 fn extract_manga_title(html: &str) -> Option<String> {
     let document = Html::parse_document(html);
     let selector = Selector::parse("div#info-block h1").unwrap();
@@ -126,7 +111,6 @@ fn extract_manga_title(html: &str) -> Option<String> {
         .map(|el| el.text().collect::<String>().trim().to_string())
 }
 
-/// Extracts image URLs from thumbnail image elements.
 fn extract_image_urls(html: &str) -> Vec<String> {
     let document = Html::parse_document(html);
     let selector = Selector::parse("div.thumb-container a.gallerythumb img").unwrap();
@@ -145,14 +129,11 @@ fn fix_url(url: &str) -> Option<String> {
         .map(|caps| format!("{}{}{}", &caps[1], &caps[2], &caps[3]))
 }
 
-/// Sanitizes a string so it can be used as a valid Windows filename.
-/// It replaces invalid characters: < > : " / \ | ? * with underscores.
 fn sanitize_windows_filename(name: &str) -> String {
     let re = Regex::new(r#"[<>:"/\\|?*]"#).unwrap();
-    // Replace invalid characters with an underscore
+
     let sanitized = re.replace_all(name, "_").to_string();
 
-    // Ensure the filename is not empty after sanitization
     if sanitized.is_empty() {
         return "invalid_filename".to_string();
     }
@@ -160,7 +141,6 @@ fn sanitize_windows_filename(name: &str) -> String {
     sanitized
 }
 
-/// Downloads an image from the given URL and saves it in the specified folder.
 async fn download_image(client: &Client, image_url: &str, folder_name: &str) {
     let response = client
         .get(image_url)
