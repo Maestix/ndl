@@ -2,7 +2,7 @@
 name = "ndl"
 authors = ["Maestix"]
 description = "A minimalist Nhentai downloader with zero configuration"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
 readme = "README.md"
 repository = "https://github.com/Maestix/ndl"
@@ -19,3 +19,6 @@ url = "2.5.4"
 strip = true
 opt-level = 3
 lto = "fat"
+
+[[bin]]
+name = "ndl"

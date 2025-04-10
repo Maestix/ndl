@@ -1,0 +1,101 @@
+name: Release Build
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: Build (Release)
+        run: cargo build --release
+
+      - name: Prepare Windows Artifact
+        run: |
+          mkdir -p release
+          cp target/release/ndl.exe release/ndl-windows-x64.exe
+
+      - name: Upload Windows Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release/ndl-windows-x64.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev
+
+      - name: Build (Release)
+        run: cargo build --release
+
+      - name: Prepare Linux Artifact
+        run: |
+          mkdir -p release
+          cp target/release/ndl release/ndl-linux-x64
+
+      - name: Upload Linux Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release/ndl-linux-x64
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-macos:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: stable
+          override: true
+
+      - name: Install Dependencies
+        run: |
+          brew update
+          brew install openssl pkg-config
+
+      - name: Build (Release)
+        run: cargo build --release
+
+      - name: Prepare MacOS Artifact
+        run: |
+          mkdir -p release
+          cp target/release/ndl release/ndl-macos-x64
+
+      - name: Upload MacOS Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: release/ndl-macos-x64
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
